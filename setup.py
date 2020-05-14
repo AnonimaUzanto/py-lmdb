@@ -149,15 +149,15 @@ def grep_version():
                 return eval(line.split()[-1])
 
 setup(
-    name = 'lmdb',
+    name = 'lmdb_monero',
     version = grep_version(),
     description = "Universal Python binding for the LMDB 'Lightning' Database",
     long_description = "Universal Python binding for the LMDB 'Lightning' Database",
     long_description_content_type = "text/plain",
     author = 'David Wilson',
-    maintainer = 'Nic Watson',
+    maintainer = 'Nic Watson, Norman Moeschter-Schenck',
     license = 'OpenLDAP BSD',
-    url = 'http://github.com/jnwatson/py-lmdb/',
+    url = 'https://github.com/normoes/py-lmdb/',
     packages = ['lmdb'],
     classifiers = [
         "Programming Language :: Python",

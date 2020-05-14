@@ -3157,6 +3157,91 @@ trans_delete(TransObject *self, PyObject *args, PyObject *kwds)
     Py_RETURN_TRUE;
 }
 
+static int compare_hash32(const MDB_val *a, const MDB_val *b)
+{
+  uint32_t *va = (uint32_t*) a->mv_data;
+  uint32_t *vb = (uint32_t*) b->mv_data;
+  for (int n = 7; n >= 0; n--)
+  {
+    if (va[n] == vb[n])
+      continue;
+    return va[n] < vb[n] ? -1 : 1;
+  }
+
+  return 0;
+}
+
+static int compare_uint64(const MDB_val *a, const MDB_val *b)
+{
+  uint64_t va, vb;
+  memcpy(&va, a->mv_data, sizeof(va));
+  memcpy(&vb, b->mv_data, sizeof(vb));
+  return (va < vb) ? -1 : va > vb;
+}
+
+/**
+ * Transaction.set_dupsort_hash32(db)
+ */
+static PyObject *
+trans_set_dupsort_hash32(TransObject *self, PyObject *args, PyObject *kwds)
+{
+    struct trans_set_dupsort {
+        DbObject *db;
+    } arg = {NULL, NULL};
+
+    static const struct argspec argspec[] = {
+        {"db", ARG_DB, OFFSET(trans_set_dupsort, db)},
+    };
+    int rc;
+
+    static PyObject *cache = NULL;
+    if(parse_args(self->valid, SPECSIZE(), argspec, &cache, args, kwds, &arg)) {
+        return NULL;
+    }
+    if(! arg.db) {
+        return type_error("'db' argument required.");
+    } else if(! db_owner_check(arg.db, self->env)) {
+        return NULL;
+    }
+
+    UNLOCKED(rc, mdb_set_dupsort(self->txn, arg.db->dbi, compare_hash32));
+    if(rc) {
+        return err_set("mdb_set_dupsort", rc);
+    }
+    Py_RETURN_NONE;
+}
+
+/**
+ * Transaction.set_dupsort_uint64(db)
+ */
+static PyObject *
+trans_set_dupsort_uint64(TransObject *self, PyObject *args, PyObject *kwds)
+{
+    struct trans_set_dupsort {
+        DbObject *db;
+    } arg = {NULL, NULL};
+
+    static const struct argspec argspec[] = {
+        {"db", ARG_DB, OFFSET(trans_set_dupsort, db)},
+    };
+    int rc;
+
+    static PyObject *cache = NULL;
+    if(parse_args(self->valid, SPECSIZE(), argspec, &cache, args, kwds, &arg)) {
+        return NULL;
+    }
+    if(! arg.db) {
+        return type_error("'db' argument required.");
+    } else if(! db_owner_check(arg.db, self->env)) {
+        return NULL;
+    }
+
+    UNLOCKED(rc, mdb_set_dupsort(self->txn, arg.db->dbi, compare_uint64));
+    if(rc) {
+        return err_set("mdb_set_dupsort", rc);
+    }
+    Py_RETURN_NONE;
+}
 /**
  * Transaction.drop(db)
  */
@@ -3484,6 +3569,8 @@ static struct PyMethodDef trans_methods[] = {
     {"commit", (PyCFunction)trans_commit, METH_NOARGS},
     {"cursor", (PyCFunction)trans_cursor, METH_VARARGS|METH_KEYWORDS},
     {"delete", (PyCFunction)trans_delete, METH_VARARGS|METH_KEYWORDS},
+    {"set_dupsort_hash32", (PyCFunction)trans_set_dupsort_hash32, METH_VARARGS|METH_KEYWORDS},
+    {"set_dupsort_uint64", (PyCFunction)trans_set_dupsort_uint64, METH_VARARGS|METH_KEYWORDS},
     {"drop", (PyCFunction)trans_drop, METH_VARARGS|METH_KEYWORDS},
     {"get", (PyCFunction)trans_get, METH_VARARGS|METH_KEYWORDS},
     {"put", (PyCFunction)trans_put, METH_VARARGS|METH_KEYWORDS},
