@@ -38,7 +38,6 @@ except ImportError:
 
 import lmdb
 
-
 _cleanups = []
 
 def cleanup():
@@ -104,11 +103,8 @@ def debug_collect():
             # PyPy doesn't collect objects with __del__ on first attempt.
             gc.collect()
 
-
-# Handle moronic Python >=3.0 <3.3.
 UnicodeType = getattr(__builtin__, 'unicode', str)
 BytesType = getattr(__builtin__, 'bytes', str)
-
 
 try:
     INT_TYPES = (int, long)
@@ -142,16 +138,25 @@ ITEMS2 = [(k, B('')) for k in KEYS2]
 REV_ITEMS2 = ITEMS2[::-1]
 VALUES2 = [B('') for k in KEYS2]
 
-def putData(t, db=None):
-    for k, v in ITEMS:
+KEYSFIXED = BL('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
+VALUES_MULTI = [(B('r'), B('s')) for k in KEYSFIXED]
+ITEMS_MULTI_FIXEDKEY = [
+    (kv[0], v) for kv in list(zip(KEYSFIXED, VALUES_MULTI)) for v in kv[1]
+    ]
+
+def _put_items(items, t, db=None):
+    for k, v in items:
         if db:
             t.put(k, v, db=db)
         else:
             t.put(k, v)
 
+
+def putData(t, db=None):
+    _put_items(ITEMS, t, db=db)
+
 def putBigData(t, db=None):
-    for k, v in ITEMS2:
-        if db:
-            t.put(k, v, db=db)
-        else:
-            t.put(k, v)
+    _put_items(ITEMS2, t, db=db)
+
+def putBigDataMultiFixed(t, db=None):
+    _put_items(ITEMS_MULTI_FIXEDKEY, t, db=db)

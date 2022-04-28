@@ -9,7 +9,7 @@ lmdb
     :maxdepth: 2
 
 This is a universal Python binding for the `LMDB 'Lightning' Database
-<http://symas.com/mdb/>`_. Two variants are provided and automatically selected
+<http://lmdb.tech/>`_. Two variants are provided and automatically selected
 during install: a `CFFI <https://cffi.readthedocs.io/en/release-0.5/>`_ variant
 that supports `PyPy <http://www.pypy.org/>`_ and all versions of CPython >=2.7,
 and a C extension that supports CPython >=2.7 and >=3.4. Both variants
@@ -65,6 +65,11 @@ built statically by default. If your system distribution includes LMDB, set the
 ``LMDB_FORCE_SYSTEM`` environment variable, and optionally ``LMDB_INCLUDEDIR``
 and ``LMDB_LIBDIR`` prior to invoking ``setup.py``.
 
+By default, the LMDB library is patched before building.  This patch (located
+at ``lib/py-lmdb/env-copy-txn.patch``) provides a minor feature:  the ability
+to copy/backup an environment under a particular transaction.   If you prefer
+to bypass the patch, set the environment variable ``LMDB_PURE``.
+
 The CFFI variant depends on CFFI, which in turn depends on ``libffi``, which
 may need to be installed from a package. On CPython, both variants additionally
 depend on the CPython development headers. On Debian/Ubuntu:
@@ -100,7 +105,7 @@ Getting Help
 
 Before getting in contact, please ensure you have thoroughly reviewed this
 documentation, and if applicable, the associated
-`official Doxygen documentation <http://symas.com/mdb/doc/>`_.
+`official Doxygen documentation <http://lmdb.tech/doc/>`_.
 
 If you have found a bug, please report it on the `GitHub issue tracker
 <https://github.com/dw/py-lmdb/issues>`_, or mail it to the list below if
@@ -151,7 +156,9 @@ Space usage can be monitored using :py:meth:`Environment.stat`:
              'psize': 4096L}
 
 This database contains 3,761,848 records and no values were spilled
-(``overflow_pages``).
+(``overflow_pages``).  `Environment.stat` only return information for the
+default database.  If named databases are used, you must add the results
+from `Transaction.stat` on each named database.
 
 By default record keys are limited to 511 bytes in length, however this can be
 adjusted by rebuilding the library. The compile-time key length can be queried
@@ -284,10 +291,9 @@ overwrite the map, resulting in database corruption.
 
 .. caution::
 
-    This option may cause filesystems that don't support sparse files, such as
-    OSX, to immediately preallocate `map_size=` bytes of underlying storage
-    when the environment is opened or closed for the first time.
-
+    A filesystem failure (such as running out of space), will crash the Python
+    process if this option is enabled.  (This is a general OS limitation, and
+    not limited to LMDB).
 
 Resource Management
 +++++++++++++++++++

@@ -1,5 +1,5 @@
 #
-# Copyright 2013 The py-lmdb authors, all rights reserved.
+# Copyright 2013-2021 The py-lmdb authors, all rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted only as authorized by the OpenLDAP
@@ -27,10 +27,11 @@ from __future__ import with_statement
 import sys
 import unittest
 
+import lmdb
+
 import testlib
 from testlib import B
 from testlib import BT
-
 
 class ContextManagerTest(unittest.TestCase):
     def tearDown(self):
@@ -50,7 +51,7 @@ class ContextManagerTest(unittest.TestCase):
         try:
             with txn.cursor() as curs:
                 curs.put(123, 123)
-        except:
+        except Exception:
             pass
         self.assertRaises(Exception, lambda: curs.get(B('foo')))
 
@@ -141,6 +142,25 @@ class CursorTest(CursorTestBase):
     def testPut(self):
         pass
 
+class CursorTest2(unittest.TestCase):
+    def tearDown(self):
+        testlib.cleanup()
+
+    def setUp(self):
+        self.path, self.env = testlib.temp_env()
+        self.db = self.env.open_db(b'foo', dupsort=True)
+        self.txn = self.env.begin(write=True, db=self.db)
+        self.c = self.txn.cursor()
+
+    def testIterWithDeletes(self):
+        ''' A problem identified in LMDB 0.9.27 '''
+        self.c.put(b'\x00\x01', b'hehe', dupdata=True)
+        self.c.put(b'\x00\x02', b'haha', dupdata=True)
+        self.c.set_key(b'\x00\x02')
+        it = self.c.iternext()
+        self.assertEqual((b'\x00\x02', b'haha'), next(it))
+        self.txn.delete(b'\x00\x01', b'hehe', db=self.db)
+        self.assertRaises(StopIteration, next, it)
 
 class PutmultiTest(CursorTestBase):
     def test_empty_seq(self):
@@ -172,8 +192,32 @@ class PutmultiTest(CursorTestBase):
 
     def test_bad_seq1(self):
         self.assertRaises(Exception,
-             lambda: self.c.putmulti(range(2)))
+                          lambda: self.c.putmulti(range(2)))
 
+    def test_dupsort(self):
+        _, env = testlib.temp_env()
+        db1 = env.open_db(B('db1'), dupsort=True)
+        txn = env.begin(write=True, db=db1)
+        with txn.cursor() as c:
+            tups = [BT('a', 'value1'), BT('b', 'value1'), BT('b', 'value2')]
+            assert (3, 3) == c.putmulti(tups)
+
+    def test_dupsort_putmulti_append(self):
+        _, env = testlib.temp_env()
+        db1 = env.open_db(B('db1'), dupsort=True)
+        txn = env.begin(write=True, db=db1)
+        with txn.cursor() as c:
+            tups = [BT('a', 'value1'), BT('b', 'value1'), BT('b', 'value2')]
+            assert (3, 3) == c.putmulti(tups, append=True)
+
+    def test_dupsort_put_append(self):
+        _, env = testlib.temp_env()
+        db1 = env.open_db(B('db1'), dupsort=True)
+        txn = env.begin(write=True, db=db1)
+        with txn.cursor() as c:
+            assert c.put(B('a'), B('value1'), append=True)
+            assert c.put(B('b'), B('value1'), append=True)
+            assert c.put(B('b'), B('value2'), append=True)
 
 class ReplaceTest(CursorTestBase):
     def test_replace(self):
@@ -231,7 +275,7 @@ class PreloadTest(CursorTestBase):
         self.txn = self.env.begin(write=True)
         self.c = self.txn.cursor()
 
-    @unittest.skipIf(sys.platform != 'linux', "test only works on Linux")
+    @unittest.skipIf(not sys.platform.startswith('linux'), "test only works on Linux")
     def test_preload(self):
         """
         Test that reading just the key doesn't prefault the value contents, but
@@ -250,21 +294,38 @@ class PreloadTest(CursorTestBase):
         self.path, self.env = testlib.temp_env(path=self.path, writemap=True)
         self.txn = self.env.begin(write=True, buffers=True)
         self.c = self.txn.cursor()
-        minflts_before = resource.getrusage(resource.RUSAGE_THREAD)[6]
+        minflts_before = resource.getrusage(resource.RUSAGE_SELF)[6]
         self.c.set_key(B('a'))
-        assert self.c.key() == B('a')
-        minflts_after_key = resource.getrusage(resource.RUSAGE_THREAD)[6]
+        assert bytes(self.c.key()) == B('a')
+        minflts_after_key = resource.getrusage(resource.RUSAGE_SELF)[6]
 
         self.c.value()
-        minflts_after_value = resource.getrusage(resource.RUSAGE_THREAD)[6]
+        minflts_after_value = resource.getrusage(resource.RUSAGE_SELF)[6]
 
-        epsilon = 5
+        epsilon = 60
 
         # Setting the position doesn't prefault the data
         assert minflts_after_key - minflts_before < epsilon
 
         # Getting the value does prefault the data, even if we only get it by pointer
         assert minflts_after_value - minflts_after_key > 1000
+
+class CursorReadOnlyTest(unittest.TestCase):
+    def tearDown(self):
+        testlib.cleanup()
+
+    def test_cursor_readonly(self):
+        '''
+        Tests whether you can open a cursor on a sub-db at all in a read-only environment.
+        '''
+        path, env = testlib.temp_env(max_dbs=10)
+        env.open_db(b'foo')
+        env.close()
+        with lmdb.open(path, max_dbs=10, readonly=True) as env:
+            db2 = env.open_db(b'foo')
+            with env.begin(db=db2) as txn:
+                with txn.cursor(db=db2):
+                    pass
 
 if __name__ == '__main__':
     unittest.main()

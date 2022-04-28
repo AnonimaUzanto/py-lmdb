@@ -1,4 +1,4 @@
-# Copyright 2013 The py-lmdb authors, all rights reserved.
+# Copyright 2013-2021 The py-lmdb authors, all rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted only as authorized by the OpenLDAP
@@ -19,7 +19,7 @@
 # <http://www.openldap.org/>.
 
 """
-cffi wrapper for OpenLDAP's "Lightning" MDB database.
+Python wrapper for OpenLDAP's "Lightning" MDB database.
 
 Please see https://lmdb.readthedocs.io/
 """
@@ -50,5 +50,4 @@ except ImportError:
     from lmdb.cffi import __all__
     from lmdb.cffi import __doc__
 
-__version__ = '0.99'
-
+__version__ = '1.2.1'
